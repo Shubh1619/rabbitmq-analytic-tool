@@ -1,0 +1,86 @@
+# ----------------------------------
+# Python 
+# ----------------------------------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pdb
+*.pkl
+
+# Byte-compiled / Caches
+*.egg-info/
+*.egg
+.eggs/
+.cache/
+.mypy_cache/
+.pytest_cache/
+
+# ----------------------------------
+# Virtual Environment
+# ----------------------------------
+venv/
+.venv/
+ENV/
+env/
+
+# ----------------------------------
+# Environment Files
+# ----------------------------------
+.env
+.env.*
+*.env
+
+# ----------------------------------
+# FastAPI / Backend 
+# ----------------------------------
+backend/**/__pycache__/
+backend/*.sqlite3
+backend/*.db
+backend/logs/
+backend/temp/
+backend/.DS_Store
+
+# Alembic cache
+backend/alembic/versions/__pycache__/
+alembic.ini
+
+# ----------------------------------
+# Celery / RabbitMQ
+# ----------------------------------
+celerybeat-schedule
+celerybeat.pid
+broker.pid
+
+# ----------------------------------
+# System / OS Files
+# ----------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ----------------------------------
+# Logs
+# ----------------------------------
+*.log
+logs/
+
+# ----------------------------------
+# Node / Frontend (if added later)
+# ----------------------------------
+node_modules/
+dist/
+build/
+
+# ----------------------------------
+# Editors / IDE
+# ----------------------------------
+.vscode/
+.idea/
+
+# ----------------------------------
+# Others
+# ----------------------------------
+*.bak
+*.swp
+*.tmp

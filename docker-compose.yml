@@ -1,0 +1,79 @@
+version: '3.9'
+
+services:
+  backend:
+    build: ./backend
+    container_name: backend
+    env_file:
+      - .env
+    depends_on:
+      - rabbitmq
+      - postgres
+      - clickhouse
+    ports:
+      - "8000:8000"
+    command: >
+      sh -c "uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+
+  worker:
+    build: ./backend
+    container_name: worker
+    env_file:
+      - .env
+    depends_on:
+      - rabbitmq
+      - postgres
+      - clickhouse
+    command: >
+      sh -c "celery -A celery_app.celery_app worker --loglevel=info"
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    env_file:
+      - .env
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBIT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBIT_PASS}
+
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    container_name: clickhouse
+    env_file:
+      - .env
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+
+  superset:
+    image: apache/superset
+    container_name: superset
+    env_file:
+      - .env
+    depends_on:
+      - clickhouse
+    ports:
+      - "8088:8088"
+
+volumes:
+  postgres_data:
+  clickhouse_data:
