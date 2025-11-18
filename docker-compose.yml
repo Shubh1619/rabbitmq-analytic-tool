@@ -1,79 +1,73 @@
-version: '3.9'
+version: "3.9"
 
 services:
+
   backend:
-    build: ./backend
-    container_name: backend
-    env_file:
-      - .env
-    depends_on:
-      - rabbitmq
-      - postgres
-      - clickhouse
+    build: .
+    container_name: analytics-backend
+    restart: always
     ports:
       - "8000:8000"
-    command: >
-      sh -c "uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+    environment:
+      CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
+      CELERY_BACKEND: rpc://
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_PORT: 8123
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ""
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
 
   worker:
-    build: ./backend
-    container_name: worker
-    env_file:
-      - .env
+    build: .
+    container_name: analytics-worker
+    command: celery -A backend.celery_app.celery worker --loglevel=info
+    restart: always
+    environment:
+      CELERY_BROKER_URL: amqp://guest:guest@rabbitmq:5672//
+      CELERY_BACKEND: rpc://
+      CLICKHOUSE_HOST: clickhouse
+      CLICKHOUSE_PORT: 8123
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ""
     depends_on:
-      - rabbitmq
-      - postgres
-      - clickhouse
-    command: >
-      sh -c "celery -A celery_app.celery_app worker --loglevel=info"
+      clickhouse:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
 
   rabbitmq:
     image: rabbitmq:3-management
     container_name: rabbitmq
-    env_file:
-      - .env
+    restart: always
     ports:
       - "5672:5672"
       - "15672:15672"
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBIT_USER}
-      RABBITMQ_DEFAULT_PASS: ${RABBIT_PASS}
-
-  postgres:
-    image: postgres:15
-    container_name: postgres
-    env_file:
-      - .env
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
 
   clickhouse:
-    image: clickhouse/clickhouse-server:latest
+    image: clickhouse/clickhouse-server
     container_name: clickhouse
-    env_file:
-      - .env
+    restart: always
     ports:
-      - "8123:8123"
-      - "9000:9000"
-    volumes:
-      - clickhouse_data:/var/lib/clickhouse
-
-  superset:
-    image: apache/superset
-    container_name: superset
-    env_file:
-      - .env
-    depends_on:
-      - clickhouse
-    ports:
-      - "8088:8088"
-
-volumes:
-  postgres_data:
-  clickhouse_data:
+      - "8123:8123"    # HTTP interface
+      - "9000:9000"    # Native TCP interface
+    environment:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ""
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
