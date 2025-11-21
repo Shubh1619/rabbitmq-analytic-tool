@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import List
 from backend.celery_app.tasks import process_event
 
+
 router = APIRouter()
 
 class TrackEvent(BaseModel):

@@ -28,7 +28,7 @@ def init_aggregation():
         """,
 
         # --------------------------------------------------
-        # MV 2: Business-level summary
+        # MV 2: Business-level summary (FIXED — NO arrayJoin)
         # --------------------------------------------------
         """
         CREATE MATERIALIZED VIEW IF NOT EXISTS mv_business_summary
@@ -36,10 +36,10 @@ def init_aggregation():
         AS
         SELECT
             toDate(timestamp) AS date,
-            arrayJoin(business_id) AS business_id,
-            sum(event_type = 'click') AS total_clicks,
-            sum(event_type = 'view') AS total_views,
-            sum(event_type = 'call') AS total_calls
+            business_id,   -- now String, no arrayJoin
+            countIf(event_type = 'click') AS total_clicks,
+            countIf(event_type = 'view') AS total_views,
+            countIf(event_type = 'call') AS total_calls
         FROM analytics_events
         GROUP BY date, business_id;
         """,

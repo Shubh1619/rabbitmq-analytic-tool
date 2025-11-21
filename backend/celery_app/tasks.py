@@ -1,84 +1,123 @@
-from backend.celery_app.celery import celery_app
-import clickhouse_connect
-import os
-from dotenv import load_dotenv
-from datetime import datetime
+import threading
+import time
+from datetime import datetime, timezone
+from celery.utils.log import get_task_logger
 
-load_dotenv()
+from backend.celery_app.celery import celery_app    # FIXED
+from backend.config import settings                 # FIXED (requires pydantic-settings fix)
+from backend.db.database import get_clickhouse_client
 
-# ClickHouse connection
-client = clickhouse_connect.get_client(
-    host=os.getenv("CLICKHOUSE_HOST", "clickhouse"),
-    port=int(os.getenv("CLICKHOUSE_PORT", 8123)),
-    username=os.getenv("CLICKHOUSE_USER", "default"),
-    password=os.getenv("CLICKHOUSE_PASSWORD", "")
-)
+logger = get_task_logger(__name__)
 
-# Create table if not exists
-client.command("""
-CREATE TABLE IF NOT EXISTS analytics_events (
-    client_id String,
-    user_id String,
-    event_type String,
-    search_type String,
-    search_query String,
-    business_id String,
-    latitude Float64,
-    longitude Float64,
-    timestamp DateTime
-) ENGINE = MergeTree()
-ORDER BY timestamp
-""")
+_lock = threading.Lock()
+_buffer = []
+_thread_started = False
+_client = None
 
-@celery_app.task
-def process_event(event: dict):
 
-    # ----------------------------------------
-    # ✅ Fix: Always convert business_id to String
-    # ----------------------------------------
-    business_id = event.get("business_id")
+def _get_client():
+    global _client
+    if _client is None:
+        _client = get_clickhouse_client()
+    return _client
 
-    if isinstance(business_id, list):
-        # Convert list → comma-separated string
-        business_id = ",".join([str(x) for x in business_id])
-    elif business_id in [None, "", [], {}, "not_found"]:
-        business_id = "not_found"
-    else:
-        business_id = str(business_id)
 
-    # ----------------------------------------
-    # ✅ Fix: Convert timestamp string → datetime
-    # ----------------------------------------
-    raw_ts = event.get("timestamp")
+def _flush_buffer():
+    global _buffer
+    with _lock:
+        if not _buffer:
+            return
+        rows = _buffer
+        _buffer = []
 
-    if not raw_ts or raw_ts == "string":
-        timestamp = datetime.utcnow()
-    else:
+    try:
+        client = _get_client()
+        client.insert(
+            "analytics_events",
+            rows,
+            column_names=[
+                "client_id", "user_id", "event_type", "search_type",
+                "search_query", "business_id", "latitude", "longitude", "timestamp"
+            ]
+        )
+        logger.info("Flushed %d rows to ClickHouse", len(rows))
+    except Exception as e:
+        logger.exception("ClickHouse batch insert failed: %s", e)
+        try:
+            client.insert(
+                "analytics_events",
+                rows,
+                column_names=[
+                    "client_id", "user_id", "event_type", "search_type",
+                    "search_query", "business_id", "latitude", "longitude", "timestamp"
+                ]
+            )
+            logger.info("Retry insert succeeded for %d rows", len(rows))
+        except Exception:
+            logger.exception("Retry insert failed; dropping batch")
+
+
+def _flusher_loop():
+    while True:
+        time.sleep(settings.FLUSH_INTERVAL)
+        try:
+            _flush_buffer()
+        except Exception:
+            logger.exception("Error in flusher loop")
+
+
+def _ensure_flusher():
+    global _thread_started
+    if not _thread_started:
+        t = threading.Thread(target=_flusher_loop, daemon=True)
+        t.start()
+        _thread_started = True
+
+
+@celery_app.task(bind=True, acks_late=settings.CELERY_TASK_ACKS_LATE)
+def process_event(self, event: dict):
+    _ensure_flusher()
+
+    try:
+        business_id = event.get("business_id")
+        
+        # Case 1 → already list
+        if isinstance(business_id, list):
+            business_id = [str(x) for x in business_id]
+        
+        # Case 2 → string
+        elif isinstance(business_id, str) and business_id.strip() != "":
+            business_id = [business_id]
+        
+        # Case 3 → empty or None
+        else:
+            business_id = ["not_found"]
+
+        raw_ts = event.get("timestamp")
         try:
             timestamp = datetime.fromisoformat(raw_ts.replace("Z", "+00:00"))
         except:
-            timestamp = datetime.utcnow()
+            timestamp = datetime.now(timezone.utc)
 
-    # ----------------------------------------
-    # Insert into ClickHouse
-    # ----------------------------------------
-    client.insert(
-        "analytics_events",
-        [[
+        row = [
             event.get("client_id", ""),
             event.get("user_id", ""),
             event.get("event_type", ""),
             event.get("search_type", ""),
             event.get("search_query", ""),
-            business_id,                      # <--- FIXED
-            float(event.get("latitude", 0)),
-            float(event.get("longitude", 0)),
+            business_id,
+            float(event.get("latitude", 0.0)),
+            float(event.get("longitude", 0.0)),
             timestamp
-        ]],
-        column_names=[
-            "client_id", "user_id", "event_type", "search_type",
-            "search_query", "business_id", "latitude", "longitude", "timestamp"
         ]
-    )
 
-    return {"status": "stored_in_clickhouse"}
+        with _lock:
+            _buffer.append(row)
+            if len(_buffer) >= settings.BATCH_SIZE:
+                _flush_buffer()
+
+        return {"status": "queued_local_buffer"}
+
+    except Exception as e:
+        logger.exception("Error in process_event: %s", e)
+        raise
