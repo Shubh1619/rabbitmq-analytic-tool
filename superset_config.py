@@ -1,46 +1,36 @@
-# ---------------------------------------
-# BASIC SUPERSET CONFIG
-# ---------------------------------------
-
 SECRET_KEY = "my_superset_secret"
 
 SQLALCHEMY_DATABASE_URI = "sqlite:////app/superset_home/superset.db"
 
 FEATURE_FLAGS = {
     "ENABLE_TEMPLATE_PROCESSING": True,
+    "EMBEDDED_SUPERSET": True,
+    "DASHBOARD_NATIVE_FILTERS": True,
+    "DASHBOARD_CROSS_FILTERS": True,
+    "THUMBNAILS": True,
 }
 
-WTF_CSRF_ENABLED = True
+WTF_CSRF_ENABLED = False         
 
-
-# ---------------------------------------
-# ENABLE IFRAME EMBEDDING (IMPORTANT)
-# ---------------------------------------
-
-# Allow other apps (FastAPI frontend) to embed Superset dashboards
 HTTP_HEADERS = {
-    "X-Frame-Options": "ALLOWALL",         # allow embedding
-    "Access-Control-Allow-Origin": "*",     # or restrict to your domain
+    "X-Frame-Options": "ALLOWALL",
+    "Content-Security-Policy": "frame-ancestors *;",
+    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Headers": "*",
 }
 
 ENABLE_CORS = True
 CORS_OPTIONS = {
     "supports_credentials": True,
     "allow_headers": ["*"],
-    "origins": ["*"],       # or put your frontend domain here
+    "origins": ["*"],
 }
 
 
-# ---------------------------------------
-# CLICKHOUSE CONNECT DRIVER CONFIG
-# ---------------------------------------
 
 CLICKHOUSE_URI = (
-    "clickhousedb+connect://default:w3uqO75Wq_29r@"
-    "zvx41wbk0r.asia-northeast1.gcp.clickhouse.cloud:8443/default"
-    "?secure=true"
+    "clickhousedb+connect://default:@clickhouse:8123/default"
 )
 
 AVAILABLE_DRIVERS = {
@@ -48,25 +38,17 @@ AVAILABLE_DRIVERS = {
 }
 
 
-# ---------------------------------------
-# CACHE PERFORMANCE
-# ---------------------------------------
 
 CACHE_CONFIG = {
     "CACHE_TYPE": "SimpleCache",
     "CACHE_DEFAULT_TIMEOUT": 300,
 }
 
+PUBLIC_ROLE_LIKE = "Public"
+AUTH_ROLE_PUBLIC = "Public"
 
-# ---------------------------------------
-# OPTIONAL: ALLOW DASHBOARD EMBED TOKENS
-# ---------------------------------------
-# (Useful if later you want secure embed without login)
-# ---------------------------------------
 
-FEATURE_FLAGS.update({
-    "EMBEDDED_SUPERSET": True,
-    "DASHBOARD_NATIVE_FILTERS": True,
-    "DASHBOARD_CROSS_FILTERS": True,
-    "THUMBNAILS": True,
-})
+
+ENABLE_PROXY_FIX = True
+ENABLE_CORS = True
+

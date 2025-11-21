@@ -9,13 +9,62 @@ client = clickhouse_connect.get_client(
 )
 
 def init_aggregation():
-    print("🚀 Initializing ClickHouse MATERIALIZED VIEWS (Real-Time Aggregation)...")
+    print("🚀 Initializing ClickHouse AGGREGATION TABLES + MATERIALIZED VIEWS...")
 
-    queries = [
+    # ---------------------------------------------------------------------
+    # 1) BASE TABLES (these MUST exist before MVs)
+    # ---------------------------------------------------------------------
+    base_tables = [
 
-        # --------------------------------------------------
-        # MV 1: Daily total events
-        # --------------------------------------------------
+        # Daily Events Table
+        """
+        CREATE TABLE IF NOT EXISTS analytics_events_daily (
+            date Date,
+            total_events UInt64
+        )
+        ENGINE = SummingMergeTree()
+        ORDER BY date;
+        """,
+
+        # Business Summary Table (business_id is String for arrayJoin)
+        """
+        CREATE TABLE IF NOT EXISTS analytics_business_summary (
+            date Date,
+            business_id String,
+            total_clicks UInt64,
+            total_views UInt64,
+            total_calls UInt64
+        )
+        ENGINE = SummingMergeTree()
+        ORDER BY (date, business_id);
+        """,
+
+        # Top Keywords Table
+        """
+        CREATE TABLE IF NOT EXISTS analytics_top_keywords (
+            date Date,
+            keyword String,
+            total_searches UInt64
+        )
+        ENGINE = SummingMergeTree()
+        ORDER BY (date, keyword);
+        """
+    ]
+
+    for q in base_tables:
+        try:
+            client.command(q)
+            print("✅ Created table:", q.split("\n")[1].strip())
+        except Exception as e:
+            print("⚠️ Table exists / Error:", e)
+
+
+    # ---------------------------------------------------------------------
+    # 2) MATERIALIZED VIEWS (use arrayJoin for business_id)
+    # ---------------------------------------------------------------------
+    mvs = [
+
+        # MV 1 — Daily Events Summary
         """
         CREATE MATERIALIZED VIEW IF NOT EXISTS mv_events_daily
         TO analytics_events_daily
@@ -27,16 +76,14 @@ def init_aggregation():
         GROUP BY date;
         """,
 
-        # --------------------------------------------------
-        # MV 2: Business-level summary (FIXED — NO arrayJoin)
-        # --------------------------------------------------
+        # MV 2 — Business Summary with arrayJoin
         """
         CREATE MATERIALIZED VIEW IF NOT EXISTS mv_business_summary
         TO analytics_business_summary
         AS
         SELECT
             toDate(timestamp) AS date,
-            business_id,   -- now String, no arrayJoin
+            arrayJoin(business_id) AS business_id,
             countIf(event_type = 'click') AS total_clicks,
             countIf(event_type = 'view') AS total_views,
             countIf(event_type = 'call') AS total_calls
@@ -44,9 +91,7 @@ def init_aggregation():
         GROUP BY date, business_id;
         """,
 
-        # --------------------------------------------------
-        # MV 3: Keyword-level summary
-        # --------------------------------------------------
+        # MV 3 — Top Keywords Summary (typo fixed)
         """
         CREATE MATERIALIZED VIEW IF NOT EXISTS mv_top_keywords
         TO analytics_top_keywords
@@ -61,14 +106,14 @@ def init_aggregation():
         """
     ]
 
-    for q in queries:
+    for q in mvs:
         try:
             client.command(q)
-            print("✅ Executed MV:", q.split("\n")[1].strip())
+            print("✅ Created MV:", q.split("\n")[1].strip())
         except Exception as e:
             print("⚠️ MV exists / Error:", e)
 
-    print("🎉 Materialized Views initialization complete.")
+    print("🎉 Aggregation system initialized successfully!")
 
 
 if __name__ == "__main__":

@@ -24,10 +24,10 @@ def get_clickhouse_client():
 
 def init_db():
     """
-    Initialize analytics_events table if it doesn't exist.
-    Note: business_id is a String (flattened) to match batching consumer.
+    Initialize analytics_events table with Array(String) for business_id.
     """
     client = get_clickhouse_client()
+
     create = """
     CREATE TABLE IF NOT EXISTS analytics_events (
         client_id String,
@@ -35,7 +35,7 @@ def init_db():
         event_type String,
         search_type String,
         search_query String,
-        business_id String,
+        business_id Array(String), 
         latitude Float64,
         longitude Float64,
         timestamp DateTime
