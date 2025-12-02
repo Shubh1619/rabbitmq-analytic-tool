@@ -12,7 +12,33 @@ def init_aggregation():
     print("🚀 Initializing ClickHouse AGGREGATION TABLES + MATERIALIZED VIEWS...")
 
     # ---------------------------------------------------------------------
-    # 1) BASE TABLES (these MUST exist before MVs)
+    # 0) RAW EVENTS TABLE (MUST be created first)
+    # ---------------------------------------------------------------------
+    analytics_events_table = """
+        CREATE TABLE IF NOT EXISTS analytics_events (
+            id UUID DEFAULT generateUUIDv4(),
+            client_id String,
+            user_id String,
+            event_type String,
+            search_type String,
+            search_query String,
+            business_id Array(String),
+            latitude Float64,
+            longitude Float64,
+            timestamp DateTime DEFAULT now()
+        )
+        ENGINE = MergeTree()
+        ORDER BY (timestamp);
+    """
+
+    try:
+        client.command(analytics_events_table)
+        print("✅ Created base table: analytics_events")
+    except Exception as e:
+        print("⚠️ Error creating analytics_events:", e)
+
+    # ---------------------------------------------------------------------
+    # 1) AGGREGATION TABLES
     # ---------------------------------------------------------------------
     base_tables = [
 
@@ -26,7 +52,7 @@ def init_aggregation():
         ORDER BY date;
         """,
 
-        # Business Summary Table (business_id is String for arrayJoin)
+        # Business Summary Table 
         """
         CREATE TABLE IF NOT EXISTS analytics_business_summary (
             date Date,
@@ -58,9 +84,8 @@ def init_aggregation():
         except Exception as e:
             print("⚠️ Table exists / Error:", e)
 
-
     # ---------------------------------------------------------------------
-    # 2) MATERIALIZED VIEWS (use arrayJoin for business_id)
+    # 2) MATERIALIZED VIEWS
     # ---------------------------------------------------------------------
     mvs = [
 
@@ -91,7 +116,7 @@ def init_aggregation():
         GROUP BY date, business_id;
         """,
 
-        # MV 3 — Top Keywords Summary (typo fixed)
+        # MV 3 — Top Keywords Summary
         """
         CREATE MATERIALIZED VIEW IF NOT EXISTS mv_top_keywords
         TO analytics_top_keywords
@@ -114,7 +139,6 @@ def init_aggregation():
             print("⚠️ MV exists / Error:", e)
 
     print("🎉 Aggregation system initialized successfully!")
-
 
 if __name__ == "__main__":
     init_aggregation()

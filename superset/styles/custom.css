@@ -1,0 +1,79 @@
+/* Load Poppins */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+/* Global Force Override */
+html, body, #app,
+.ant-typography, 
+.ant-menu, 
+.ant-btn, 
+.ant-table, 
+.ant-select, 
+.ant-input, 
+.ant-modal, 
+.ant-tabs,
+.ant-tooltip,
+div, span, p, a, button, h1, h2, h3, h4, h5, h6 {
+    font-family: "Poppins", "Roboto", sans-serif !important;
+}
+
+
+
+/* loader css */
+
+
+/* Fix Superset-generated CSS classes */
+[class*="css-"], [class^="css-"] {
+    font-family: "Poppins", "Roboto", sans-serif !important;
+}
+
+/* Force inside dashboard */
+.dashboard-component, 
+.slice-container, 
+.chart-header, 
+.chart-controls {
+    font-family: "Poppins", "Roboto", sans-serif !important;
+}
+
+
+/* Hide Ant Design skeleton on welcome page */
+.ant-skeleton,
+.ant-skeleton-content,
+.ant-skeleton-title,
+.ant-skeleton-paragraph {
+    display: none !important;
+}
+
+/* Hide Ant Design skeleton on welcome page */
+.ant-skeleton, 
+.ant-skeleton-content, 
+.ant-skeleton-title, 
+.ant-skeleton-paragraph {
+    opacity: 0 !important;
+    display: none !important;
+}
+
+/* Center custom loader on welcome page */
+.app .welcome {
+    position: relative !important;
+}
+
+.app .welcome::before {
+    content: "";
+    background-image: url("/static/assets/images/loader.gif");
+    background-repeat: no-repeat;
+    background-size: 120px;     /* adjust size */
+    width: 120px;
+    height: 120px;
+    position: absolute;
+    top: 45%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 9999;
+    display: block;
+}
+
+/* Force loader to show while page content is loading */
+.ant-spin-nested-loading > div > .ant-spin {
+    opacity: 0 !important; /* hide ant loader */
+}
+
